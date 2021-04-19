@@ -1,151 +1,107 @@
 const { db, admin, storage, firebase } = require("../util/admin");
+const { getOneQuestionTemp } = require('../method/getOneQuesionTemp');
+const { getQuestionsTemp } = require('../method/getQuestionsTemp');
 
-exports.getQuestions = (req, res) => {
-  db.collection("Question")
-    .orderBy("createAt",'desc')
-    .limit(20)
-    .get()
-    .then((collection) => {
-      let questionsCollections = collection.docs;
-      let questions = [];
-      let q;
-      questionsCollections.forEach((qCollection) => {
-        q = qCollection.data();
-        q.id = qCollection.id;
-        q.createAt = q.createAt.toDate().toISOString();
-        questions.push(q);
-      });
-
-      return res.json(questions);
-    })
-    .catch((e) => res.json(e.message));
+exports.getQuestions = async (req, res) => {
+  let lastDocId = req.params.lastDocId;
+  if (!lastDocId) {
+    db.collection("Question")
+      .orderBy("createAt", "desc")
+      .limit(20)
+      .get()
+      .then(async (query) => {
+        getQuestionsTemp(query)
+          .then((data) => res.json(data))
+          .catch((e) => {
+            console.log(e);
+            res.status(400).json({ error: e });
+          });
+      })
+      .catch((e) => res.json(e.message));
+  } else {
+    let lastDoc = await db.doc(`Question/${lastDocId}`).get();
+    if (!lastDoc.exists)
+      return res.status(400).json({ error: "No question ID" });
+    db.collection("Question")
+      .orderBy("createAt", "desc")
+      .startAfter(lastDoc)
+      .limit(20)
+      .get()
+      .then(async (query) => {
+        getQuestionsTemp(query)
+          .then((data) => res.json(data))
+          .catch((e) => res.status(400).json({ error: e }));
+      })
+      .catch((e) => res.json(e.message));
+  }
 };
 
-exports.getNext20Questions = async (req, res) => {
-  let startAfter = req.params.lastQuestionId;
-
-  let last = await db.collection("Question").doc(startAfter).get();
-
-  if (!last.exists) return res.status(400).json({ error: "No such question" });
-
-  db.collection("Question")
-  .orderBy("createAt",'desc')
-    .startAfter(last)
-    .limit(20)
-    .get()
-    .then((query) => {
-      let questions = [];
-      let question;
-      query.docs.forEach((doc) => {
-        question = doc.data();
-        question.id = doc.id;
-        question.createAt = question.createAt.toDate().toISOString();
-        questions.push(question);
-      });
-      return res.json(questions);
-    })
-    .catch((e) => res.status(400).json({ error: e.message }));
-};
-
-exports.getQuestionsByTopic = (req, res) => {
+exports.getQuestionsByTopic = async (req, res) => {
   let topic = req.params.topic;
-
-  db.collection("Question")
-    .orderBy("createAt",'desc')
-    .where("topic", "=", topic)
-    .limit(20)
-    .get()
-    .then((collection) => {
-      let questionsCollections = collection.docs;
-      let questions = [];
-      let q;
-      questionsCollections.forEach((qCollection) => {
-        q = qCollection.data();
-        q.id = qCollection.id;
-        q.createAt = q.createAt.toDate().toISOString();
-        questions.push(q);
-      });
-
-      return res.json(questions);
-    })
-    .catch((e) => res.json(e.message));
+  let lastDocId = req.params.lastDocId;
+  if (!lastDocId) {
+    db.collection("Question")
+      .orderBy("createAt", "desc")
+      .where("topic", "=", topic)
+      .limit(20)
+      .get()
+      .then(async (query) => {
+        getQuestionsTemp(query)
+          .then((data) => res.json(data))
+          .catch((e) => res.status(400).json({ error: e }));
+      })
+      .catch((e) => res.json(e.message));
+  } else {
+    let lastDoc = await db.doc(`Question/${lastDocId}`).get();
+    if (!lastDoc.exists)
+      return res.status(400).json({ error: "No question ID" });
+    db.collection("Question")
+      .orderBy("createAt", "desc")
+      .where("topic", "=", topic)
+      .startAfter(lastDoc)
+      .limit(20)
+      .get()
+      .then((query) => {
+        getQuestionsTemp(query)
+          .then((data) => res.json(data))
+          .catch((e) => res.status(400).json({ error: e }));
+      })
+      .catch((e) => res.json(e.message));
+  }
 };
 
-exports.getNext20QuestionsByTopic = async (req, res) => {
-  let startAfter = req.params.lastQuestionId;
-  let topic = req.params.topic;
-
-  let last = await db.collection("Question").doc(startAfter).get();
-
-  if (!last.exists) return res.status(400).json({ error: "No such question" });
-
-  db.collection("Question")
-    .orderBy("createAt",'desc')
-    .where("topic", "==", topic)
-    .startAfter(last)
-    .limit(20)
-    .get()
-    .then((query) => {
-      let questions = [];
-      let question;
-      query.docs.forEach((doc) => {
-        question = doc.data();
-        question.id = doc.id;
-        question.createAt = question.createAt.toDate().toISOString();
-        questions.push(question);
-      });
-      return res.json(questions);
-    })
-    .catch((e) => res.status(400).json({ error: e.message }));
-};
-
-exports.getMyQuestions = (req, res)=>{
-  let userId = req.user.uid;
-  db.collection("Question")
-  .orderBy("createAt",'desc')
-    .where("owner", "==", userId)
-    .limit(20)
-    .get()
-    .then((query) => {
-      let questions = [];
-      let question;
-      query.docs.forEach((doc) => {
-        question = doc.data();
-        question.id = doc.id;
-        question.createAt = question.createAt.toDate().toISOString();
-        questions.push(question);
-      });
-      return res.json(questions);
-    })
-    .catch((e) => res.status(400).json({ error: e.message }));
-}
-
-exports.getNext20MyQuestions = async (req, res) => {
-  let startAfter = req.params.lastQuestionId;
-  let userId = req.user.uid;
-
-  let last = await db.collection("Question").doc(startAfter).get();
-
-  if (!last.exists) return res.status(400).json({ error: "No such question" });
-
-  db.collection("Question")
-  .orderBy("createAt",'desc')
-    .where("owner", "==", userId)
-    .startAfter(last)
-    .limit(20)
-    .get()
-    .then((query) => {
-      let questions = [];
-      let question;
-      query.docs.forEach((doc) => {
-        question = doc.data();
-        question.id = doc.id;
-        question.createAt = question.createAt.toDate().toISOString();
-        questions.push(question);
-      });
-      return res.json(questions);
-    })
-    .catch((e) => res.status(400).json({ error: e.message }));
+exports.getQuestionsByUserId = async (req, res) => {
+  let userId = req.params.userId;
+  let lastDocId = req.params.lastDocId;
+  if (!lastDocId) {
+    db.collection("Question")
+      .orderBy("createAt", "desc")
+      .where("owner", "==", userId)
+      .limit(20)
+      .get()
+      .then((query) => {
+        getQuestionsTemp(query)
+          .then((data) => res.json(data))
+          .catch((e) => res.status(400).json({ error: e }));
+      })
+      .catch((e) => res.status(400).json({ error: e.message }));
+  } else {
+    let lastDoc = await db.doc(`Question/${lastDocId}`).get();
+    if (!lastDoc.exists)
+      return res.status(400).json({ error: "No question ID" });
+    db.collection("Question")
+      .orderBy("createAt", "desc")
+      .startAfter(lastDoc)
+      .where("owner", "==", userId)
+      .limit(20)
+      .get()
+      .then((query) => {
+        getQuestionsTemp(query)
+          .then((data) => res.json(data))
+          .catch((e) => res.status(400).json({ error: e }));
+      })
+      .catch((e) => res.status(400).json({ error: e.message }));
+  }
 };
 
 exports.getQuestion = (req, res) => {
@@ -153,28 +109,8 @@ exports.getQuestion = (req, res) => {
     .doc(req.params.id)
     .get()
     .then(async (doc) => {
-      if (!doc.exists)
-        return res.status(400).json({ error: "Question not found" });
-      let question = doc.data();
-      question.createAt = question.createAt.toDate().toISOString();
-      question.id = doc.id;
-      let comments = [];
-      let commentsCollection = await db
-        .collection(`Comment`)
-        .where("question", "==", question.id)
-        .orderBy("commentAt",'desc')
-        .get()
-        .catch((e) => {
-          throw Error("Some field missing");
-        });
-      commentsCollection.docs.forEach((cmtDoc) => {
-        let comment = cmtDoc.data();
-        comment.id = cmtDoc.id;
-        comment.commentAt = comment.commentAt.toDate().toISOString();
-        comments.push(comment);
-      });
-      question.comment = comments;
-
+      
+      let question = await getOneQuestionTemp(doc);
       return res.json(question);
     })
     .catch((e) => res.json(e.message));

@@ -2,7 +2,6 @@ const { json } = require("body-parser");
 const { db, admin, storage, firebase } = require("../util/admin");
 // const fbAuth = require("../util/fbAuth");
 
-
 exports.signUpWithEmail = (req, res) => {
   let data = req.body;
   let newUser = {
@@ -71,7 +70,8 @@ exports.updateAvatar = (req, res) => {
 exports.updateProfile = (req, res) => {
   let userDetail = req.body;
   userDetail.id = req.user.uid;
-  if(userDetail.id == 'anonymous') return res.status(400).json({error: 'Anonymous user'});
+  if (userDetail.id == "anonymous")
+    return res.status(400).json({ error: "Anonymous user" });
   db.doc(`User/${userDetail.id}`)
     .set(
       {
@@ -95,21 +95,6 @@ exports.updateProfile = (req, res) => {
     });
 };
 
-exports.myProfile = (req, res) => {
-  let id = req.user.uid;
-  if(id == 'anonymous') return res.status(400).json({error: 'Anonymous user'});
-  db.doc(`User/${id}`)
-    .get()
-    .then((data) => {
-      let user = data.data();
-      user.id = data.id;
-      return res.json({ user });
-    })
-    .catch((e) => {
-      return res.status(400).json(e.message);
-    });
-};
-
 // const getFileUrl = async (path) => {
 //   if (!path) throw Error();
 //   let file = storage.file(path);
@@ -127,9 +112,9 @@ exports.myProfile = (req, res) => {
 
 exports.profile = (req, res) => {
   let id = req.params.id;
-  let avatarUrl = `https://firebasestorage.googleapis.com/v0/b/hoidap-824bb.appspot.com/o/User%2F${id}-avatar.png?alt=media&token=${id} `;
+  let avatarUrl = `https://firebasestorage.googleapis.com/v0/b/hoidap-824bb.appspot.com/o/User%2F8jSppc10mmeCNVRKsSx7sKtlEch1-avatar.png?alt=media&token=8jSppc10mmeCNVRKsSx7sKtlEch1`;
 
-  let coverUrl = `https://firebasestorage.googleapis.com/v0/b/hoidap-824bb.appspot.com/o/User%2F${id}-coverImage.png?alt=media&token=${id} `;
+  let coverUrl = `https://firebasestorage.googleapis.com/v0/b/hoidap-824bb.appspot.com/o/User%2F8jSppc10mmeCNVRKsSx7sKtlEch1-coverImage.png?alt=media&token=8jSppc10mmeCNVRKsSx7sKtlEch1 `;
 
   db.doc(`User/${id}`)
     .get()
@@ -147,7 +132,7 @@ exports.profile = (req, res) => {
       user.avatar = avatarUrl;
       user.coverImage = coverUrl;
       user.id = data.id;
-      return res.json({ user });
+      return res.json(user);
     })
     .catch((e) => {
       return res.status(404).json({ error: e.message });
@@ -166,16 +151,10 @@ exports.profile = (req, res) => {
 //     .catch((e) => {
 //       res.json({ e });
 //     });
-  // file
-  //   .getMetadata()
-  //   .then((val) => res.json(val))
-  //   .catch((e) => res.json({ e }));
+// file
+//   .getMetadata()
+//   .then((val) => res.json(val))
+//   .catch((e) => res.json({ e }));
 // };
 
-
-
-
-'https://firebasestorage.googleapis.com/v0/b/hoidap-824bb.appspot.com/o/User%2F8jSppc10mmeCNVRKsSx7sKtlEch1-avatar.png?alt=media&token=8jSppc10mmeCNVRKsSx7sKtlEch1'
-
-
-
+("https://firebasestorage.googleapis.com/v0/b/hoidap-824bb.appspot.com/o/User%2F8jSppc10mmeCNVRKsSx7sKtlEch1-avatar.png?alt=media&token=8jSppc10mmeCNVRKsSx7sKtlEch1");
