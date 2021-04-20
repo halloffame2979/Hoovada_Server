@@ -1,6 +1,5 @@
 const { json } = require("body-parser");
 const { db, admin, storage, firebase } = require("../util/admin");
-// const fbAuth = require("../util/fbAuth");
 
 exports.signUpWithEmail = (req, res) => {
   let data = req.body;
@@ -46,7 +45,6 @@ exports.signUpWithEmail = (req, res) => {
 exports.signInWithEmail = (req, res) => {
   const email = req.body.email;
   const password = req.body.password;
-
   firebase
     .auth()
     .signInWithEmailAndPassword(email, password)
@@ -59,7 +57,7 @@ exports.signInWithEmail = (req, res) => {
       } else throw new Error("Email is not verified");
     })
     .catch((e) => {
-      return res.status(401).json({ error: e.message });
+      return res.status(400).json({ error: e.message });
     });
 };
 

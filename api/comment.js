@@ -1,4 +1,5 @@
 const { db, admin } = require("../util/admin");
+const { getASpecificComment } = require("../method/getASpecificComment");
 
 exports.getCommentsInQuestion = async (req, res) => {
   let questionId = req.params.questionId;
@@ -53,6 +54,16 @@ exports.getCommentsInQuestion = async (req, res) => {
   }
 };
 
+exports.getSpecificComment = (req, res) => {
+  let id = req.params.answerId;
+  // res.json(id);
+  getASpecificComment(id)
+    .then((data) => {
+      return res.json(data);
+    })
+    .catch((e) => res.status(400).json({ error: e.message }));
+};
+
 exports.postComment = async (req, res) => {
   let detail = req.body;
   if (!detail.question || !detail.detail)
@@ -74,21 +85,26 @@ exports.postComment = async (req, res) => {
     .catch((e) => res.json({ error: e.message }));
 };
 exports.updateComment = async (req, res) => {
-  let detail;
+  let detail = req.body.detail || req.comment.detail;
+  if (!req.body.detail)
+    return res.status(400).json({ error: "Comment is required" });
+  if (!detail.trim())
+    return res.status(400).json({ error: "Invalid comment" });
 
-  if (!req.body.detail.trim())
-    return res.status(400).json({ error: "Invalid comment change" });
+  if (typeof detail != "string")
+    return res.status(400).json({ error: "Comment must be string" });
 
-  if (req.body.detail == req.comment.detail)
+  if (detail.trim() == req.comment.detail)
     return res.status(400).json({ error: "Detail does not change" });
-  detail = req.body;
-  detail.id = req.params.id;
+
+  let id = req.params.id;
+  
 
   db.collection("Comment")
-    .doc(detail.id)
+    .doc(id)
     .set(
       {
-        detail: detail.detail,
+        detail: detail,
       },
       { merge: true }
     )

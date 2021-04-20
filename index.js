@@ -37,6 +37,7 @@ const {
   updateComment,
   deleteComment,
   getCommentsInQuestion,
+  getSpecificComment,
 } = require("./api/comment");
 const { like, dislike } = require("./api/interact");
 
@@ -65,7 +66,7 @@ app.delete("/deleteQuestion/:id", fbAuth, questionOwnerAuth, deleteQuestion); //
 
 app.get("/getCommentsInQuestion/:questionId", getCommentsInQuestion); //limit 20
 app.get("/getCommentsInQuestion/:questionId/:lastDocId", getCommentsInQuestion); //get next 20 comment by question id
-
+app.get("/getSpecificComment/:answerId", getSpecificComment);
 app.post("/postComment", fbAuth, postComment);
 app.put("/updateComment/:id", fbAuth, commentOwnerAuth, updateComment);
 app.delete("/deleteComment/:id", fbAuth, commentOwnerAuth, deleteComment);

@@ -9,7 +9,7 @@ module.exports = (req, res, next) => {
   if (req.params.id) {
     id = req.params.id;
   } else {
-    return res.status(404).json({ error: "Invalid detail" });
+    return res.status(400).json({ error: "Invalid detail" });
   }
 
   db.collection("Question")
@@ -17,7 +17,7 @@ module.exports = (req, res, next) => {
     .get()
     .then((question) => {
       if (!question.exists)
-        return res.status(404).json({ error: "Question not found" });
+        return res.status(400).json({ error: "Question not found" });
       if (req.user.uid == question.data().owner) {
         req.question = question.data();
         req.question.id = question.id;

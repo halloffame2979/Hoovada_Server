@@ -1,6 +1,6 @@
 const { db, admin, storage, firebase } = require("../util/admin");
-const { getOneQuestionTemp } = require('../method/getOneQuesionTemp');
-const { getQuestionsTemp } = require('../method/getQuestionsTemp');
+const { getOneQuestionTemp } = require("../method/getOneQuesionTemp");
+const { getQuestionsTemp } = require("../method/getQuestionsTemp");
 
 exports.getQuestions = async (req, res) => {
   let lastDocId = req.params.lastDocId;
@@ -13,7 +13,6 @@ exports.getQuestions = async (req, res) => {
         getQuestionsTemp(query)
           .then((data) => res.json(data))
           .catch((e) => {
-            console.log(e);
             res.status(400).json({ error: e });
           });
       })
@@ -109,7 +108,6 @@ exports.getQuestion = (req, res) => {
     .doc(req.params.id)
     .get()
     .then(async (doc) => {
-      
       let question = await getOneQuestionTemp(doc);
       return res.json(question);
     })
@@ -119,12 +117,15 @@ exports.getQuestion = (req, res) => {
 exports.postQuestion = (req, res) => {
   let detail = req.body;
   let id = req.user.uid;
+
   if (id == "anonymous")
     return res.status(400).json({ error: "Anonymous user" });
-
-  if (!req.body.question || !req.body.topic)
+  if (!detail.question || !detail.topic)
     return res.status(400).json({ error: "Invalid question" });
-
+  if (typeof detail.question != "string" || Array.isArray(detail.topic))
+    return res.status(400).json({ error: "Invalid question" });
+  if (!detail.question.trim())
+    return res.status(400).json({ error: "Invalid question" });
   db.collection("Question")
     .add({
       owner: id,
@@ -140,16 +141,23 @@ exports.postQuestion = (req, res) => {
 
 exports.updateQuestion = async (req, res) => {
   let detail = {};
+  if (!req.body.question || !req.body.topic)
+    return res.status(400).json({ error: "Question and Topic are required" });
 
-  if (!req.body.question.trim() && !req.body.topic.trim())
-    return res.status(400).json({ error: "Invalid question change" });
-
-  detail.question = req.body.question || req.question.question;
+  detail.question = req.body.question.trim() || req.question.question;
   detail.topic = req.body.topic || req.question.topic;
+  if (typeof detail.question != "string" || !Array.isArray(detail.topic))
+    return res
+      .status(400)
+      .json({ error: "Question must be string and topic must be array" });
+  if (!detail.question.trim())
+    return res.status(400).json({ error: "Invalid question" });
+  if (detail.topic.length <= 0)
+    return res.status(400).json({ error: "Invalid topic" });
 
   if (
-    detail.question == req.question.question &&
-    detail.topic == req.question.topic
+    detail.question.trim() == req.question.question &&
+    detail.topic.toString() == req.question.topic.toString()
   )
     return res.status(400).json({ error: "Details do not change" });
 

@@ -10,25 +10,25 @@ exports.like = (req, res) => {
     .then((interactDoc) => {
       if (!interactDoc.exists)
         return res.status(400).json({ error: "No such comment ID" });
-      let likes = [];
-      let dislikes = [];
-      likes = interactDoc.data().likes;
-      dislikes = interactDoc.data().dislikes;
-      let likeIndex = likes.findIndex((like) => like == userId);
-      let dislikeIndex = dislikes.findIndex((dislike) => dislike == userId);
+      let like = [];
+      let dislike = [];
+      like = interactDoc.data().like || [];
+      dislike = interactDoc.data().dislike || [];
+      let likeIndex = like.findIndex((id) => id == userId);
+      let dislikeIndex = dislike.findIndex((id) => id == userId);
       if (likeIndex >= 0) {
-        likes.splice(likeIndex, 1);
+        like.splice(likeIndex, 1);
       } else if (dislikeIndex >= 0) {
-        dislikes.splice(dislikeIndex, 1);
-        likes.push(userId);
+        dislike.splice(dislikeIndex, 1);
+        like.push(userId);
       } else {
-        likes.push(userId);
+        like.push(userId);
       }
       db.doc(`Comment/${commentId}`)
         .set(
           {
-            likes,
-            dislikes,
+            like,
+            dislike,
           },
           { merge: true }
         )
@@ -47,25 +47,25 @@ exports.dislike = (req, res) => {
     .then((interactDoc) => {
       if (!interactDoc.exists)
         return res.status(400).json({ error: "No such comment ID" });
-      let likes = [];
-      let dislikes = [];
-      likes = interactDoc.data().likes;
-      dislikes = interactDoc.data().dislikes;
-      let likeIndex = likes.findIndex((like) => like == userId);
-      let dislikeIndex = dislikes.findIndex((dislike) => dislike == userId);
+      let like = [];
+      let dislike = [];
+      like = interactDoc.data().like;
+      dislike = interactDoc.data().dislike;
+      let likeIndex = like.findIndex((id) => id == userId);
+      let dislikeIndex = dislike.findIndex((id) => id == userId);
       if (dislikeIndex >= 0) {
-        dislikes.splice(dislikeIndex, 1);
+        dislike.splice(dislikeIndex, 1);
       } else if (likeIndex >= 0) {
-        likes.splice(likeIndex, 1);
-        dislikes.push(userId);
+        like.splice(likeIndex, 1);
+        dislike.push(userId);
       } else {
-        dislikes.push(userId);
+        dislike.push(userId);
       }
       db.doc(`Comment/${commentId}`)
         .set(
           {
-            likes,
-            dislikes,
+            like,
+            dislike,
           },
           { merge: true }
         )
