@@ -3,7 +3,7 @@ const cors = require("cors");
 
 const app = express();
 
-app.use(cors({ origin: true }));
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
 app.listen(3001);
@@ -17,6 +17,7 @@ const commentOwnerAuth = require("./util/commentOwnerAuth");
 const {
   signUpWithEmail,
   signInWithEmail,
+  checkAuthState,
   updateProfile,
   profile,
 } = require("./api/user");
@@ -30,6 +31,7 @@ const {
   deleteQuestion,
   getQuestionsByTopic,
   getQuestionsByUserId,
+  // findQuestionByKey,
 } = require("./api/question");
 
 const {
@@ -45,6 +47,7 @@ const { like, dislike } = require("./api/interact");
 
 app.post("/signUpWithEmail", signUpWithEmail);
 app.post("/signInWithEmail", signInWithEmail);
+app.get("/checkAuthState", fbAuth, checkAuthState);
 app.post("/updateProfile", fbAuth, updateProfile);
 app.get("/profile/:id", profile);
 
@@ -56,7 +59,7 @@ app.get("/getQuestionsByTopic/:topic", getQuestionsByTopic); //limit 20
 app.get("/getQuestionsByTopic/:topic/:lastDocId", getQuestionsByTopic); //load next 20 by last docId
 app.get("/getQuestionsByUserId/:userId", getQuestionsByUserId); //limit 20
 app.get("/getQuestionsByUserId/:userId/:lastDocId", getQuestionsByUserId); //load next 20 by last docId
-
+// app.get("/findQuestionByKey/:key", findQuestionByKey);
 app.get("/getQuestion/:id", getQuestion); //get Q by Id
 app.post("/postQuestion", fbAuth, postQuestion); //post
 app.put("/updateQuestion/:id", fbAuth, questionOwnerAuth, updateQuestion); //update by Q Id
@@ -77,3 +80,5 @@ app.post("/dislike/:commentId", fbAuth, dislike);
 
 // 8jSppc10mmeCNVRKsSx7sKtlEch1 O3HFSejZppPVA6CY0NIR
 // app.post('/myFunc', myFunc);
+
+

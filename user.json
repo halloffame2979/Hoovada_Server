@@ -1,0 +1,30 @@
+{
+  "user": [
+    {
+      "friend": [],
+      "userName": "Vũ Quang Huy",
+      "birth": "",
+      "bio": "",
+      "email": "khonggioihan2979@gmail.com",
+      "avatar": "graduate.png",
+      "coverImage": "",
+      "gender": "Other",
+      "topic": ["Ford", "BMW", "Fiat"],
+      "createAt": "2021-03-22T07:49:23.970Z",
+      "id": "8jSppc10mmeCNVRKsSx7sKtlEch1"
+    },
+    {
+      "gender": "Other",
+      "avatar": "",
+      "topic": [],
+      "email": "omegadeath2979@gmail.com",
+      "createAt": "2021-03-24T08:19:46.959Z",
+      "bio": "",
+      "birth": "",
+      "userName": "Yasuo",
+      "coverImage": "",
+      "friend": [],
+      "id": "cluHZaxJkebHc93agUgLnKve0TE2"
+    }
+  ]
+}

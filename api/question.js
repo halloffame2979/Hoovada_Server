@@ -111,7 +111,7 @@ exports.getQuestion = (req, res) => {
       let question = await getOneQuestionTemp(doc);
       return res.json(question);
     })
-    .catch((e) => res.json(e.message));
+    .catch((e) => res.status(400).json({ error: e.message }));
 };
 
 exports.postQuestion = (req, res) => {
@@ -195,3 +195,40 @@ exports.deleteQuestion = async (req, res) => {
     })
     .catch((e) => res.status(400).json({ error: e.message }));
 };
+
+// var queryForSearch = db
+//   .collection("Question")
+//   .get()
+//   .then((data) => {
+//     console.log("cakk");
+//     return data;
+//   });
+
+// setInterval(() => {
+//   queryForSearch = db
+//     .collection("Question")
+//     .get()
+//     .then((data) => {
+//       return data;
+//     });
+// }, 3600000);
+
+// exports.findQuestionByKey = async (req, res) => {
+//   let keys = req.params.key;
+//   keys = keys.split(/\s+/);
+//   console.log(keys);
+//   let docs = (await queryForSearch).docs.map((doc) => {
+//     let temp = doc.data();
+//     temp.id = doc.id;
+//     return temp;
+//   });
+
+//   let result = docs.filter((data) => {
+//     let check = true;
+//     keys.forEach((key) => {
+//       check = check && data.question.toLowerCase().includes(key);
+//     });
+//     return check;
+//   });
+//   return res.json(result);
+// };

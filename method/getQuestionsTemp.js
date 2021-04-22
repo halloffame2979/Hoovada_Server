@@ -1,5 +1,4 @@
 const { db } = require("../util/admin");
-const { getCommentsTemp } = require("./getCommentsTemp");
 exports.getQuestionsTemp = async (query) => {
   let isLast = false;
   let questionQuery = query.docs;
@@ -9,15 +8,18 @@ exports.getQuestionsTemp = async (query) => {
 
   for (let i = 0; i < questionQuery.length; i++) {
     let q;
-    let qCollection= questionQuery[i];
+    let qCollection = questionQuery[i];
     let owner;
 
     let ownerTemp = {};
     q = qCollection.data();
     q.id = qCollection.id;
-    let comments = await getCommentsTemp(q.id);
+    // let comments = await getCommentsTemp(q.id);
+    let commentCount = (
+      await db.collection("Comment").where("question", "==", q.id).get()
+    ).docs.length;
 
-    q.comment = { commentCount: comments.length, comment: comments };
+    q.comment = { commentCount: commentCount };
 
     owner = await db
       .doc(`User/${q.owner}`)

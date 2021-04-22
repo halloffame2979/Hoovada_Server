@@ -23,6 +23,6 @@ module.exports = (req, res, next) => {
       // req.user = {uid:'anonymous'};
       // return next();
 
-      return res.status(400).json({error: 'Cannot deca'})
+      return res.status(400).json({error: 'Cannot decode'})
     });
 };

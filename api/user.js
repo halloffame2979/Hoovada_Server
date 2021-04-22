@@ -1,4 +1,5 @@
-const { json } = require("body-parser");
+const { getCommentsTemp } = require("../method/getCommentsTemp");
+const { getQuestionsTemp } = require("../method/getQuestionsTemp");
 const { db, admin, storage, firebase } = require("../util/admin");
 
 exports.signUpWithEmail = (req, res) => {
@@ -8,7 +9,9 @@ exports.signUpWithEmail = (req, res) => {
     password: data.password,
     userName: data.userName,
   };
-
+  if (!data.userName) return res.status(400).json({ error: "No user name" });
+  if (data.userName.length == 0)
+    return res.status(400).json({ error: "No user name" });
   firebase
     .auth()
     .createUserWithEmailAndPassword(newUser.email, newUser.password)
@@ -32,7 +35,7 @@ exports.signUpWithEmail = (req, res) => {
         { merge: true }
       );
 
-      return res.status(201).json({ message: "Sign up successfully" });
+      return res.status(200).json({ message: "Sign up successfully" });
     })
     .catch((error) => {
       var errorCode = error.code;
@@ -52,13 +55,32 @@ exports.signInWithEmail = (req, res) => {
       let user = userCredential.user;
       if (user.emailVerified) {
         userCredential.user.getIdToken(false).then((token) => {
-          return res.status(200).json({ token });
+          return res
+            .cookie("token", token, {
+              httpOnly: true,
+            })
+            .status(200)
+            .json({ token });
         });
-      } else throw new Error("Email is not verified");
+      } else {
+        user.sendEmailVerification();
+        throw new Error("Email is not verified");
+      }
     })
     .catch((e) => {
       return res.status(400).json({ error: e.message });
     });
+};
+
+exports.checkAuthState = async (req, res) => {
+  let id = req.user.uid;
+  let user = await db.doc(`User/${id}`).get();
+  let userTemp = user.data();
+  userTemp.id = user.id;
+  return res.json({
+    user: userTemp,
+    auth: true,
+  });
 };
 
 exports.updateAvatar = (req, res) => {
@@ -118,7 +140,45 @@ exports.profile = (req, res) => {
     .get()
     .then(async (data) => {
       let user = data.data();
+      let question = await db
+        .collection("Question")
+        .where("owner", "==", id)
+        .get()
+        .then((query) => {
+          return getQuestionsTemp(query);
+        })
+        .catch(console.log);
+      let commentQuery = (
+        await db.collection("Comment").where("owner", "==", id).limit(20).get()
+      ).docs;
+      let comment = commentQuery.map((cmt) => {
+        let temp = cmt.data();
+        temp.commentAt = temp.commentAt.toDate().toISOString();
+        temp.owner = { ...user, id: data.id };
+        data.id = cmt.id;
+        return temp;
+      });
 
+      for (let i = 0; i < comment.length; i++) {
+        let questionOfComment = await db
+          .doc(`Question/${comment[i].question}`)
+          .get();
+        comment[i].question = {
+          ...questionOfComment.data(),
+          id: questionOfComment.id,
+        };
+      }
+
+      let friends = [];
+
+      for (let i = 0; i < user.friend.length; i++) {
+        let friend = await db
+          .collection("User")
+          .doc(user.friend[i])
+          .get()
+          .catch(console.log);
+        friends.push(friend);
+      }
       // await getFileUrl(user.avatar)
       //   .then((val) => (avatarUrl = val))
       //   .catch((e) => (avatarUrl = ""));
@@ -130,6 +190,9 @@ exports.profile = (req, res) => {
       user.avatar = avatarUrl;
       user.coverImage = coverUrl;
       user.id = data.id;
+      user.question = question;
+      user.comment = comment;
+      user.friend = friends;
       return res.json(user);
     })
     .catch((e) => {
