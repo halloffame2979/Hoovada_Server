@@ -2,16 +2,18 @@ const { db, admin } = require("./util/admin");
 const fs = require("fs");
 
 
-// db.collection('Comment').get().then(data=>{
+// db.collection('Question').get().then(data=>{
 //     let users = data.docs.map(val=>{
 //         let x = val.data();
 //         x.id = val.id;
+//         x.createAt = x.createAt.toDate().toISOString();
 //         return x
 //     });
-//     fs.writeFile('comment.json',JSON.stringify({user:users}),e=>{
+//     fs.writeFile('question.json',JSON.stringify({user:users}),e=>{
 //         console.log(e);
 //     });
 // })
+
 // var data = fs.readFileSync("./result.json");
 // var json = JSON.parse(data);
 // var questionList = json.question;

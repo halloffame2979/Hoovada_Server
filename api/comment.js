@@ -1,62 +1,42 @@
-const { db, admin } = require("../util/admin");
 const { getASpecificComment } = require("../method/getASpecificComment");
+const Question = require("../model/questionSchema");
+const Comment = require("../model/commentSchema");
+const User = require("../model/userSchema");
+const { ObjectId } = require("bson");
 
 exports.getCommentsInQuestion = async (req, res) => {
   let questionId = req.params.questionId;
-  let lastDocId = req.params.lastDocId;
+  let numberToSkip = parseInt(req.params.numberToSkip) || 0;
   let comments = [];
   let isLast = false;
-  let question = await db.collection("Question").doc(questionId).get();
-  if (!question.exists)
-    return res.status(400).json({ error: "No such question" });
+  let question = await Question.findById(questionId);
+  if (!question) return res.status(400).json({ error: "No such question" });
 
-  if (lastDocId) {
-    let lastDoc = await db.collection("Comment").doc(lastDocId).get();
-    if (!lastDoc.exists)
-      return res.status(400).json({ error: "No such comment" });
+  Comment.find({ question: questionId })
+    .sort({ likeCount: -1 })
+    .skip(numberToSkip)
+    .limit(20)
+    .exec()
+    .then(async (doc) => {
+      let query = doc;
+      let total = numberToSkip + doc.length;
 
-    db.collection("Comment")
+      if (query.length < 20) isLast = true;
+      for (let i = 0; i < query.length; i++) {
+        let comment = query[i]._doc;
 
-      .where("question", "==", questionId)
-      .startAfter(lastDoc)
-      .limit(20)
-      .get()
-      .then((doc) => {
-        let query = doc.docs;
-        if (query.length < 20) isLast = true;
-        query.forEach((doc) => {
-          let comment = doc.data();
-          comment.id = doc.id;
-          comment.commentAt = comment.commentAt.toDate().toISOString();
-          comments.push(comment);
-        });
-        return res.json({ comments, isLast });
-      })
-      .catch((e) => res.json({ error: e.message }));
-  } else {
-    db.collection("Comment")
-      .where("question", "==", questionId)
-      .limit(20)
-      .get()
-      .then((doc) => {
-        let query = doc.docs;
-        if (query.length < 20) isLast = true;
-        query.forEach((doc) => {
-          let comment = doc.data();
-          comment.id = doc.id;
-          comment.commentAt = comment.commentAt.toDate().toISOString();
-          comments.push(comment);
-        });
+        let owner = await User.findById(comment.owner).exec();
+        comment.owner = owner;
 
-        return res.json({ comments, isLast });
-      })
-      .catch((e) => res.json({ error: e.message }));
-  }
+        comments.push(comment);
+      }
+      return res.json({ comment: comments, isLast: isLast, total: total });
+    })
+    .catch((e) => res.status(400).json({ error: e.message }));
 };
 
 exports.getSpecificComment = (req, res) => {
   let id = req.params.answerId;
-  // res.json(id);
   getASpecificComment(id)
     .then((data) => {
       return res.json(data);
@@ -64,59 +44,101 @@ exports.getSpecificComment = (req, res) => {
     .catch((e) => res.status(400).json({ error: e.message }));
 };
 
+exports.getCommentsOfUser = async (req, res) => {
+  let userId = req.params.userId;
+  let numberToSkip = parseInt(req.params.numberToSkip) || 0;
+  let isLast = false;
+  let comments = [];
+  let user = await User.findById(userId);
+  if (!user) return res.status(400).json({ error: "No such user" });
+
+  Comment.find({ owner: userId })
+    .sort({ likeCount: -1 })
+    .skip(numberToSkip)
+    .limit(20)
+    .exec()
+    .then(async (doc) => {
+      let query = doc;
+      let total = doc.length + numberToSkip;
+      if (query.length < 20) isLast = true;
+      for (let i = 0; i < query.length; i++) {
+        let comment = query[i]._doc;
+
+        let question = await Question.findById(comment.question).exec();
+        comment.question = question;
+        comments.push(comment);
+      }
+      return res.json({ comment: comments, isLast: isLast, total: total });
+    })
+    .catch((e) => res.status(400).json({ error: e.message }));
+};
 exports.postComment = async (req, res) => {
-  let detail = req.body;
-  if (!detail.question || !detail.detail)
+  let answer = req.body;
+  if (!answer.question || !answer.answer)
     return res.status(400).json({ error: "Invalid comment" });
-  let q = await db.collection("Question").doc(detail.question).get();
-  if (!q.exists) return res.json({ error: "No such question" });
-  db.collection("Comment")
-    .add({
-      owner: req.user.uid,
-      question: detail.question,
-      detail: detail.detail,
-      commentAt: admin.firestore.Timestamp.fromDate(new Date()),
-      like: [],
-      dislikes: [],
-    })
+  let q = await Question.findById(answer.question).exec();
+  if (!q) return res.status(400).json({ error: "No such question" });
+  new Comment({
+    _id: new ObjectId(),
+    createAt: new Date(),
+    answer: answer.answer,
+    like: [],
+    dislike: [],
+    owner: req.user.uid,
+    question: answer.question,
+  })
+    .save()
     .then((doc) => {
-      res.json({ message: "Comment successfully" });
+      Question.updateOne(
+        { _id: answer.question },
+        { $inc: { commentCount: 1 } }
+      )
+        .then(() => res.json(doc))
+        .catch((e) => res.status(400).json({ error: e.message }));
     })
-    .catch((e) => res.json({ error: e.message }));
+    .catch((e) => res.status(400).json({ error: e.message }));
 };
 exports.updateComment = async (req, res) => {
-  let detail = req.body.detail || req.comment.detail;
-  if (!req.body.detail)
+  if (!req.body.answer)
     return res.status(400).json({ error: "Comment is required" });
-  if (!detail.trim())
-    return res.status(400).json({ error: "Invalid comment" });
+  if (!answer.trim()) return res.status(400).json({ error: "Invalid comment" });
 
-  if (typeof detail != "string")
+  if (typeof answer != "string")
     return res.status(400).json({ error: "Comment must be string" });
 
-  if (detail.trim() == req.comment.detail)
-    return res.status(400).json({ error: "Detail does not change" });
+  if (answer.trim() == req.comment.answer)
+    return res.status(400).json({ error: "Answer does not change" });
 
   let id = req.params.id;
-  
 
-  db.collection("Comment")
-    .doc(id)
-    .set(
-      {
-        detail: detail,
+  Comment.updateOne(
+    { _id: id },
+    {
+      $set: {
+        answer: answer,
       },
-      { merge: true }
-    )
-    .then((result) => res.json({ message: "Update question successfully" }))
+    }
+  )
+    .then((result) => res.json({ message: "Update comment successfully" }))
     .catch((e) => res.status(400).json({ error: e.message }));
 };
 exports.deleteComment = (req, res) => {
   let id = req.params.id;
-  db.doc(`Comment/${id}`)
-    .delete()
+  // res.json(req.comment.question);
+
+  Comment.deleteOne({ _id: id })
     .then((_) => {
-      res.json({ message: "Delete comment succesfully" });
+      Question.updateOne(
+        { _id: req.comment.question },
+        { $inc: { commentCount: -1 } }
+      )
+        .then(() => res.json({ message: "Delete comment succesfully" }))
+        .catch((e) => {
+          new Comment(req.comment).save();
+          res.status(400).json({ error: e.message });
+        });
     })
     .catch((e) => res.status(400).json({ error: e.message }));
 };
+
+//6085270a4b069e051418301a

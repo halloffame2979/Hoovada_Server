@@ -1,4 +1,4 @@
-const { admin, db } = require("./admin");
+const { admin } = require("./admin");
 
 module.exports = (req, res, next) => {
   let idToken;
@@ -18,11 +18,11 @@ module.exports = (req, res, next) => {
       req.user = decodedToken;
       return next();
     })
-    
+
     .catch((err) => {
       // req.user = {uid:'anonymous'};
       // return next();
 
-      return res.status(400).json({error: 'Cannot decode'})
+      return res.status(400).json({ error: "Cannot decode" });
     });
 };

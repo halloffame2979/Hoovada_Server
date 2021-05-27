@@ -1,17 +1,41 @@
-const { getCommentsTemp } = require("../method/getCommentsTemp");
-const { getQuestionsTemp } = require("../method/getQuestionsTemp");
-const { db, admin, storage, firebase } = require("../util/admin");
+const { firebase } = require("../util/admin");
+const ObjectId = require("mongodb").ObjectID;
+const User = require("../model/userSchema");
+const Comment = require("../model/commentSchema");
+const Question = require("../model/questionSchema");
+const ReportLog = require("../model/reportLogSchema");
+const Busboy = require("busboy");
+const path = require("path");
+const os = require("os");
+const fs = require("fs");
+const sharp = require("sharp");
+
+const storagePath = "E:/Code/Storage/Hoovada_Server/";
+
+const avatarUrl = `https://firebasestorage.googleapis.com/v0/b/hoidap-824bb.appspot.com/o/User%2F8jSppc10mmeCNVRKsSx7sKtlEch1-avatar.png?alt=media&token=8jSppc10mmeCNVRKsSx7sKtlEch1`;
+
+const coverUrl = `https://firebasestorage.googleapis.com/v0/b/hoidap-824bb.appspot.com/o/User%2F8jSppc10mmeCNVRKsSx7sKtlEch1-coverImage.png?alt=media&token=8jSppc10mmeCNVRKsSx7sKtlEch1 `;
 
 exports.signUpWithEmail = (req, res) => {
   let data = req.body;
+
+  if (!data.userName) return res.status(400).json({ error: "No user name" });
+  if (!data.email) return res.status(400).json({ error: "No email" });
+  if (!data.password) return res.status(400).json({ error: "No password" });
+
+  if (data.userName.trim().length == 0)
+    return res.status(400).json({ error: "No user name" });
+  if (data.email.trim().length == 0)
+    return res.status(400).json({ error: "No email" });
+  if (data.password.trim().length == 0)
+    return res.status(400).json({ error: "No password" });
+
   let newUser = {
     email: data.email,
     password: data.password,
     userName: data.userName,
   };
-  if (!data.userName) return res.status(400).json({ error: "No user name" });
-  if (data.userName.length == 0)
-    return res.status(400).json({ error: "No user name" });
+
   firebase
     .auth()
     .createUserWithEmailAndPassword(newUser.email, newUser.password)
@@ -19,21 +43,21 @@ exports.signUpWithEmail = (req, res) => {
       // Signed in
       var user = userCredential.user;
       user.sendEmailVerification();
-      await db.collection("User").doc(user.uid).set(
-        {
-          email: newUser.email,
-          userName: newUser.userName,
-          gender: "Other",
-          birth: "",
-          avatar: "",
-          coverImage: "",
-          bio: "",
-          friend: [],
-          topic: [],
-          createAt: new Date().toISOString(),
-        },
-        { merge: true }
-      );
+      await new User({
+        _id: user.uid,
+        email: newUser.email,
+        userName: newUser.userName,
+        gender: "Other",
+        birth: "",
+        avatar: "",
+        coverImage: "",
+        bio: "",
+        friend: [],
+        topic: [],
+        createAt: new Date().toISOString(),
+      })
+        .save()
+        .catch((e) => res.status(400).json({ error: e.message }));
 
       return res.status(200).json({ message: "Sign up successfully" });
     })
@@ -55,12 +79,7 @@ exports.signInWithEmail = (req, res) => {
       let user = userCredential.user;
       if (user.emailVerified) {
         userCredential.user.getIdToken(false).then((token) => {
-          return res
-            .cookie("token", token, {
-              httpOnly: true,
-            })
-            .status(200)
-            .json({ token });
+          return res.json({ token });
         });
       } else {
         user.sendEmailVerification();
@@ -74,148 +93,260 @@ exports.signInWithEmail = (req, res) => {
 
 exports.checkAuthState = async (req, res) => {
   let id = req.user.uid;
-  let user = await db.doc(`User/${id}`).get();
-  let userTemp = user.data();
-  userTemp.id = user.id;
+  let user = await User.findById(id);
+  if (user.banStatus) return res.status(400).json({ error: "Banned user" });
   return res.json({
-    user: userTemp,
+    user: user,
     auth: true,
   });
 };
 
 exports.updateAvatar = (req, res) => {
-  // storage.
+  let busboy = new Busboy({
+    headers: req.headers,
+    limits: { files: 1, fields: 1 },
+  });
+  let userId = req.user?.uid || 0;
+  let buffer = [];
+  let crop = {};
+  let imageDestination = storagePath + userId + "avatar.png";
+  //left top width height
+
+  busboy.on("file", function (fieldname, file, filename, encoding, mimetype) {
+    if (!mimetype.includes("image")) {
+      return res.status(400).json({ error: "Wrong image format" });
+    }
+    file.on("data", (data) => {
+      buffer.push(data);
+    });
+    file.on("end", () => {});
+  });
+
+  busboy.on(
+    "field",
+    (fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype) => {
+      let data = JSON.parse(val);
+
+      crop = {
+        height: parseInt(data.height),
+        width: parseInt(data.width),
+        left: parseInt(data.x),
+        top: parseInt(data.y),
+      };
+    }
+  );
+
+  busboy.on("filesLimit", () => {
+    return res.status(400).json({ error: "1 image is allowed" });
+  });
+  busboy.on("finish", function () {
+    try {
+      sharp(Buffer.concat(buffer))
+        .extract({ ...crop })
+        .toFormat("png")
+        .resize(140, 140)
+        .toFile(imageDestination)
+        .then(() => {
+          User.updateOne(
+            { _id: userId },
+            {
+              $set: {
+                avatar: `http://localhost:3002/image/${userId}avatar.png`,
+              },
+            }
+          )
+            .then(() =>
+              res.json({
+                avatar: `http://localhost:3002/image/${userId}avatar.png`,
+              })
+            )
+            .catch((e) => {
+              console.log(e);
+              res.status(400).json({ error: e.message });
+            });
+        });
+    } catch (e) {
+      console.log(e.message);
+    }
+  });
+  return req.pipe(busboy);
+};
+exports.updateCoverImage = (req, res) => {
+  let busboy = new Busboy({
+    headers: req.headers,
+    limits: { files: 1, fields: 1 },
+  });
+  let userId = req.user?.uid || 0;
+  let buffer = [];
+  let crop = {};
+  let imageDestination = storagePath + userId + "coverImage.png";
+  //left top width height
+
+  busboy.on("file", function (fieldname, file, filename, encoding, mimetype) {
+    if (!mimetype.includes("image")) {
+      return res.status(400).json({ error: "Wrong image format" });
+    }
+    file.on("data", (data) => {
+      buffer.push(data);
+    });
+    file.on("end", () => {});
+  });
+
+  busboy.on(
+    "field",
+    (fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype) => {
+      let data = JSON.parse(val);
+
+      crop = {
+        height: parseInt(data.height),
+        width: parseInt(data.width),
+        left: parseInt(data.x),
+        top: parseInt(data.y),
+      };
+    }
+  );
+
+  busboy.on("filesLimit", () => {
+    return res.status(400).json({ error: "1 image is allowed" });
+  });
+  busboy.on("finish", function () {
+    try {
+      sharp(Buffer.concat(buffer))
+        .extract({ ...crop })
+        .resize(810, 450)
+        .toFormat("png")
+        .toFile(imageDestination)
+        .then(() => {
+          User.updateOne(
+            { _id: userId },
+            {
+              $set: {
+                coverImage: `http://localhost:3002/image/${userId}coverImage.png`,
+              },
+            }
+          )
+            .then(() =>
+              res.json({
+                coverImage: `http://localhost:3002/image/${userId}coverImage.png`,
+              })
+            )
+            .catch((e) => {
+              console.log(e);
+              res.status(400).json({ error: e.message });
+            });
+        });
+    } catch (e) {
+      console.log(e.message);
+    }
+  });
+  return req.pipe(busboy);
 };
 
 exports.updateProfile = (req, res) => {
   let userDetail = req.body;
+  let field = req.params.field;
   userDetail.id = req.user.uid;
   if (userDetail.id == "anonymous")
     return res.status(400).json({ error: "Anonymous user" });
-  db.doc(`User/${userDetail.id}`)
-    .set(
-      {
-        //   email: userDetail.email,
-        userName: userDetail.userName,
-        gender: userDetail.gender,
-        birth: userDetail.birth,
-        avatar: userDetail.avatar,
-        coverImage: userDetail.coverImage,
-        bio: userDetail.bio,
-        friend: userDetail.friend,
-        topic: userDetail.topic,
-      },
-      { merge: true }
-    )
-    .then((_) => {
-      return res.json({ message: "Update successfully" });
-    })
-    .catch((e) => {
-      return res.status(400).json({ error: e.message });
-    });
+  if (field != "birth" && !userDetail[field])
+    return res.status(400).json({ error: "Missing field" });
+  const query = { _id: userDetail.id };
+  let allowed = ["bio", "birth", "gender", "userName"];
+  if (!allowed.includes(field))
+    return res.status(400).json({ error: "Not allowed" });
+  switch (field) {
+    case "birth": {
+      if (!userDetail.year || !userDetail.month || !userDetail.date)
+        return res
+          .status(400)
+          .json({ error: "Wrong birth. Need year, month, date" });
+      let date = new Date(
+        userDetail.year,
+        userDetail.month - 1,
+        userDetail.date
+      ).toISOString();
+      User.updateOne(query, { $set: { birth: date } })
+        .then(() => res.json({ message: "Updated Birth" }))
+        .catch((e) => res.status(400).json({ error: e.message }));
+      return;
+    }
+    default: {
+      User.updateOne(query, { $set: { [field]: userDetail[field] } })
+        .then(() => res.json({ message: `Updated ${field}` }))
+        .catch((e) => res.status(400).json({ error: e.message }));
+      return;
+    }
+  }
 };
 
-// const getFileUrl = async (path) => {
-//   if (!path) throw Error();
-//   let file = storage.file(path);
-//   let isExist = await file.exists();
-//   if (!isExist[0]) throw Error("Not found");
+exports.changePassword = (req, res) => {
+  let userEmail = req.user.email;
+  let { password, newPassword } = req.body;
+  // if (userEmail != email) return res.status(400).json({ error: "Wrong user" });
+  if (!newPassword || !newPassword?.trim())
+    return res.status(400).json({ error: "Invalid new password" });
+  firebase
+    .auth()
+    .signInWithEmailAndPassword(userEmail, password)
+    .then((credential) => {
+      let user = credential.user;
+      user
+        .updatePassword(newPassword)
+        .then(() => res.json({ message: "Change password succesfully" }))
+        .catch((e) => res.status(400).json({ error: e.message }));
+    })
+    .catch((e) => res.status(400).json({ error: e.message }));
+};
 
-//   await file
-//     .getSignedUrl({
-//       action: "read",
-//       expires: Date.now() + 1000 * 60 * 60,
-//     })
-//     .then((val) => (path = val));
-//   return path;
-// };
+exports.forgetPassword = (req, res) => {
+  let { email } = req.body;
+  firebase
+    .auth()
+    .sendPasswordResetEmail(email)
+    .then(() => {
+      return res.json({ message: "Send password to email" });
+    })
+    .catch((e) => res.status(400).json({ error: e.message }));
+};
 
 exports.profile = (req, res) => {
   let id = req.params.id;
-  let avatarUrl = `https://firebasestorage.googleapis.com/v0/b/hoidap-824bb.appspot.com/o/User%2F8jSppc10mmeCNVRKsSx7sKtlEch1-avatar.png?alt=media&token=8jSppc10mmeCNVRKsSx7sKtlEch1`;
 
-  let coverUrl = `https://firebasestorage.googleapis.com/v0/b/hoidap-824bb.appspot.com/o/User%2F8jSppc10mmeCNVRKsSx7sKtlEch1-coverImage.png?alt=media&token=8jSppc10mmeCNVRKsSx7sKtlEch1 `;
-
-  db.doc(`User/${id}`)
-    .get()
+  User.findById(id)
     .then(async (data) => {
-      let user = data.data();
-      let question = await db
-        .collection("Question")
-        .where("owner", "==", id)
-        .get()
-        .then((query) => {
-          return getQuestionsTemp(query);
-        })
-        .catch(console.log);
-      let commentQuery = (
-        await db.collection("Comment").where("owner", "==", id).limit(20).get()
-      ).docs;
-      let comment = commentQuery.map((cmt) => {
-        let temp = cmt.data();
-        temp.commentAt = temp.commentAt.toDate().toISOString();
-        temp.owner = { ...user, id: data.id };
-        data.id = cmt.id;
-        return temp;
-      });
+      if (!data) return res.status(400).json({ error: "No such user" });
 
-      for (let i = 0; i < comment.length; i++) {
-        let questionOfComment = await db
-          .doc(`Question/${comment[i].question}`)
-          .get();
-        comment[i].question = {
-          ...questionOfComment.data(),
-          id: questionOfComment.id,
-        };
-      }
+      let user = data._doc;
 
-      let friends = [];
-
-      for (let i = 0; i < user.friend.length; i++) {
-        let friend = await db
-          .collection("User")
-          .doc(user.friend[i])
-          .get()
-          .catch(console.log);
-        friends.push(friend);
-      }
-      // await getFileUrl(user.avatar)
-      //   .then((val) => (avatarUrl = val))
-      //   .catch((e) => (avatarUrl = ""));
-
-      // await getFileUrl(user.coverImage)
-      //   .then((val) => (coverUrl = val))
-      //   .catch((e) => (coverUrl = ""));
-
-      user.avatar = avatarUrl;
-      user.coverImage = coverUrl;
-      user.id = data.id;
-      user.question = question;
-      user.comment = comment;
-      user.friend = friends;
+      user.avatar = user.avatar || avatarUrl;
+      user.coverImage = user.coverImage || coverUrl;
       return res.json(user);
     })
     .catch((e) => {
       return res.status(404).json({ error: e.message });
     });
 };
+exports.report = (req, res) => {
+  let id = req.user.uid;
+  let report = req.body;
+  let type = req.query.type;
 
-// exports.change = (req, res) => {
-//   let file = storage.file("User/8jSppc10mmeCNVRKsSx7sKtlEch1-coverImage.png");
-//   file
-//     .setMetadata({
-//       metadata: {
-//         firebaseStorageDownloadTokens: "8jSppc10mmeCNVRKsSx7sKtlEch1",
-//       },
-//     })
-//     .then((val) => res.json("OK"))
-//     .catch((e) => {
-//       res.json({ e });
-//     });
-// file
-//   .getMetadata()
-//   .then((val) => res.json(val))
-//   .catch((e) => res.json({ e }));
-// };
+  report.createAt = new Date();
+  report.reporter = id;
+  report.reportDetail = ["Không phù hợp"];
 
-("https://firebasestorage.googleapis.com/v0/b/hoidap-824bb.appspot.com/o/User%2F8jSppc10mmeCNVRKsSx7sKtlEch1-avatar.png?alt=media&token=8jSppc10mmeCNVRKsSx7sKtlEch1");
+  if (type !== "Question" && type != "Comment")
+    return res.status(400).json({ error: "Type not allowed" });
+
+  if (report?.reported) {
+    // res.json({ ...report });
+    return new ReportLog({
+      ...report,
+      reportedType: type,
+      _id: new ObjectId(),
+    })
+      .save()
+      .then((val) => res.json(val))
+      .catch((e) => res.status(400).json({ error: e.message }));
+  } else return res.json("null");
+};

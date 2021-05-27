@@ -1,39 +1,33 @@
-const { db } = require("../util/admin");
+const Question = require("../model/questionSchema");
+const Comment = require("../model/commentSchema");
+const User = require("../model/userSchema");
 
 exports.getASpecificComment = async (id) => {
   let res;
-  res = await db
-    .doc(`Comment/${id}`)
-    .get()
+  res = await Comment.findById(id)
     .then(async (data) => {
-      if (!data.exists) throw Error("No such comment");
+      if (!data) throw Error("No such comment");
 
-      let comment = data.data();
-      comment.id = data.id;
-      comment.commentAt = comment.commentAt.toDate().toISOString();
+      let comment = data._doc;
 
       //get Owner
-      let owner = await db.doc(`User/${comment.owner}`).get();
+      let owner = await User.findById(comment.owner).exec();
       let ownerTemp;
-      if (!owner.exists) ownerTemp = { userName: "Anonymous" };
+      if (!owner) ownerTemp = { userName: "Anonymous" };
       else {
-        ownerTemp = owner.data();
-        ownerTemp.id = owner.id;
+        ownerTemp = owner._doc;
       }
       comment.owner = ownerTemp;
 
       //getQuestion
-      let question = await db.doc(`Question/${comment.question}`).get();
-      if (!question.exists)
-        question = { question: "Something wrong with this question" };
+      let question = await Question.findById(comment.question).exec();
+      let questionTemp;
+      if (!question)
+        questionTemp = { question: "Something wrong with this question" };
       else {
-        let questionTemp;
-        questionTemp = question.data();
-        questionTemp.id = question.id;
-        questionTemp.createAt = questionTemp.createAt.toDate().toISOString();
-        question = questionTemp;
+        questionTemp = question._doc;
       }
-      comment.question = question;
+      comment.question = questionTemp;
 
       return comment;
     })
