@@ -1,4 +1,5 @@
 const { firebase } = require("../util/admin");
+const { imageUpload } = require("../method/imageUpload");
 const ObjectId = require("mongodb").ObjectID;
 const User = require("../model/userSchema");
 const Comment = require("../model/commentSchema");
@@ -94,7 +95,9 @@ exports.signInWithEmail = (req, res) => {
 exports.checkAuthState = async (req, res) => {
   let id = req.user.uid;
   let user = await User.findById(id);
-  if (user.banStatus) return res.status(400).json({ error: "Banned user" });
+  if (user.banStatus) {
+    return res.status(400).json({ error: "Banned user" });
+  }
   return res.json({
     user: user,
     auth: true,
@@ -104,7 +107,7 @@ exports.checkAuthState = async (req, res) => {
 exports.updateAvatar = (req, res) => {
   let busboy = new Busboy({
     headers: req.headers,
-    limits: { files: 1, fields: 1 },
+    limits: { files: 1 },
   });
   let userId = req.user?.uid || 0;
   let buffer = [];
@@ -126,47 +129,32 @@ exports.updateAvatar = (req, res) => {
     "field",
     (fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype) => {
       let data = JSON.parse(val);
-
-      crop = {
-        height: parseInt(data.height),
-        width: parseInt(data.width),
-        left: parseInt(data.x),
-        top: parseInt(data.y),
-      };
+      if (fieldname == "crop") {
+        crop = {
+          height: parseFloat(data.height),
+          width: parseFloat(data.width),
+          left: parseFloat(data.x),
+          top: parseFloat(data.y),
+        };
+      }
     }
   );
 
   busboy.on("filesLimit", () => {
     return res.status(400).json({ error: "1 image is allowed" });
   });
-  busboy.on("finish", function () {
+  busboy.on("finish", async function () {
     try {
-      sharp(Buffer.concat(buffer))
-        .extract({ ...crop })
-        .toFormat("png")
-        .resize(140, 140)
-        .toFile(imageDestination)
-        .then(() => {
-          User.updateOne(
-            { _id: userId },
-            {
-              $set: {
-                avatar: `http://localhost:3002/image/${userId}avatar.png`,
-              },
-            }
-          )
-            .then(() =>
-              res.json({
-                avatar: `http://localhost:3002/image/${userId}avatar.png`,
-              })
-            )
-            .catch((e) => {
-              console.log(e);
-              res.status(400).json({ error: e.message });
-            });
-        });
+      let type = "avatar";
+
+      await imageUpload({ userId, buffer, crop, type, imageDestination }).then(
+        (url) => {
+          res.json({ avatar: url });
+        }
+      );
     } catch (e) {
       console.log(e.message);
+      res.status(400).json({ error: e.message });
     }
   });
   return req.pipe(busboy);
@@ -179,6 +167,7 @@ exports.updateCoverImage = (req, res) => {
   let userId = req.user?.uid || 0;
   let buffer = [];
   let crop = {};
+  let originalSize = {};
   let imageDestination = storagePath + userId + "coverImage.png";
   //left top width height
 
@@ -196,47 +185,32 @@ exports.updateCoverImage = (req, res) => {
     "field",
     (fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype) => {
       let data = JSON.parse(val);
-
-      crop = {
-        height: parseInt(data.height),
-        width: parseInt(data.width),
-        left: parseInt(data.x),
-        top: parseInt(data.y),
-      };
+      if (fieldname == "crop") {
+        crop = {
+          height: parseInt(data.height),
+          width: parseInt(data.width),
+          left: parseInt(data.x),
+          top: parseInt(data.y),
+        };
+      }
     }
   );
 
   busboy.on("filesLimit", () => {
     return res.status(400).json({ error: "1 image is allowed" });
   });
-  busboy.on("finish", function () {
+  busboy.on("finish", async function () {
     try {
-      sharp(Buffer.concat(buffer))
-        .extract({ ...crop })
-        .resize(810, 450)
-        .toFormat("png")
-        .toFile(imageDestination)
-        .then(() => {
-          User.updateOne(
-            { _id: userId },
-            {
-              $set: {
-                coverImage: `http://localhost:3002/image/${userId}coverImage.png`,
-              },
-            }
-          )
-            .then(() =>
-              res.json({
-                coverImage: `http://localhost:3002/image/${userId}coverImage.png`,
-              })
-            )
-            .catch((e) => {
-              console.log(e);
-              res.status(400).json({ error: e.message });
-            });
-        });
+      let type = "coverImage";
+
+      await imageUpload({ userId, buffer, crop, type, imageDestination }).then(
+        (url) => {
+          res.json({ coverImage: url });
+        }
+      );
     } catch (e) {
       console.log(e.message);
+      res.status(400).json({ error: e.message });
     }
   });
   return req.pipe(busboy);
