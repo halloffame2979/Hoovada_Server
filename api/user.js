@@ -292,8 +292,8 @@ exports.profile = (req, res) => {
 
       let user = data._doc;
 
-      user.avatar = user.avatar || avatarUrl;
-      user.coverImage = user.coverImage || coverUrl;
+      // user.avatar = user.avatar;
+      // user.coverImage = user.coverImage;
       return res.json(user);
     })
     .catch((e) => {
